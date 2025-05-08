@@ -151,6 +151,13 @@ def process_excel(uploaded_file, pin=None):
         logger.info(f"Created {len(unique_groups)} unique groups.")
         logger.info(f"Example groups: {unique_groups[:min(5, len(unique_groups))]}")
         
+        # Собираем статистику BEFORE (после группировки по OVACLS и NEIGHBORHOOD)
+        # Статистика по группам OVACLS
+        before_ovacls_stats = df.groupby('OVACLS').size().reset_index(name='Records_Before')
+        
+        # Детальная статистика по группам OVACLS и NEIGHBORHOOD
+        before_detailed_stats = df.groupby(['OVACLS', 'NEIGHBORHOOD']).size().reset_index(name='Count_Before')
+        
         # Расчет среднего SCORE для каждой группы
         logger.info("Calculating average SCORE for each group...")
         group_avg_scores = df.groupby('GROUP')['SCORE'].mean().reset_index()
@@ -222,6 +229,35 @@ def process_excel(uploaded_file, pin=None):
             cols = ["SCORE", "GROUP", "AVG_SCORE"] + [col for col in df_above_avg.columns if col not in ["SCORE", "GROUP", "AVG_SCORE"]]
             df_above_avg = df_above_avg[cols]
             logger.info("Columns SCORE, GROUP, and AVG_SCORE moved to the beginning of the table.")
+        
+        # Собираем объединенную статистику BEFORE и AFTER
+        # Статистика по OVACLS
+        after_ovacls_stats = df_above_avg.groupby('OVACLS').size().reset_index(name='Records_After')
+        
+        # Объединяем Before и After статистику по OVACLS
+        combined_ovacls_stats = pd.merge(before_ovacls_stats, after_ovacls_stats, on='OVACLS', how='outer').fillna(0)
+        combined_ovacls_stats[['Records_Before', 'Records_After']] = combined_ovacls_stats[['Records_Before', 'Records_After']].astype(int)
+        combined_ovacls_stats = combined_ovacls_stats.sort_values('OVACLS')
+        
+        # Детальная статистика по OVACLS и NEIGHBORHOOD для AFTER
+        after_detailed_stats = df_above_avg.groupby(['OVACLS', 'NEIGHBORHOOD']).agg({
+            'SCORE': ['count', 'mean', 'min', 'max']
+        })
+        
+        # Преобразуем многоуровневые колонки в плоские
+        after_detailed_stats.columns = ['Count_After', 'Average_SCORE', 'Min_SCORE', 'Max_SCORE']
+        after_detailed_stats = after_detailed_stats.reset_index()
+        
+        # Объединяем Before и After детальную статистику
+        combined_detailed_stats = pd.merge(before_detailed_stats, after_detailed_stats, on=['OVACLS', 'NEIGHBORHOOD'], how='outer')
+        combined_detailed_stats = combined_detailed_stats.fillna(0)
+        combined_detailed_stats['Count_Before'] = combined_detailed_stats['Count_Before'].astype(int)
+        combined_detailed_stats['Count_After'] = combined_detailed_stats['Count_After'].astype(int)
+        combined_detailed_stats = combined_detailed_stats.sort_values(['OVACLS', 'NEIGHBORHOOD'])
+        
+        # Сохраняем объединенную статистику в сессии
+        st.session_state['combined_ovacls_stats'] = combined_ovacls_stats
+        st.session_state['combined_detailed_stats'] = combined_detailed_stats
         
         logger.info(f"Processing completed successfully. Final result: {len(df_above_avg)} records.")
         logger.info("=== File processing finished ===")

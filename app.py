@@ -7,7 +7,7 @@ from excel_processor_app_en import process_excel  # Import updated function
 # Set page config to wide mode but with left-aligned content
 st.set_page_config(page_title="Excel Processor", layout="wide")
 
-# Apply custom CSS to left-align content
+# Apply custom CSS to left-align content and improve tab styling
 st.markdown("""
 <style>
     .block-container {
@@ -24,6 +24,86 @@ st.markdown("""
     }
     section[data-testid="stSidebar"] {
         width: 18rem !important;
+    }
+    
+    /* Improved Tab Styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0px;
+        border-bottom: 1px solid #333;
+        margin-bottom: 20px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 40px;
+        white-space: pre-wrap;
+        background-color: transparent;
+        border-radius: 4px 4px 0 0;
+        padding: 10px 16px;
+        margin-right: 4px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #aaaaaa;
+        border: none;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: transparent;
+        border-bottom: 2px solid #ff4b4b;
+        color: white;
+        font-weight: 600;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+        color: white;
+    }
+    
+    /* Custom styles for main tabs (Results, Statistics, Log) */
+    div[data-testid="stHorizontalBlock"] {
+        gap: 0;
+        border-bottom: none;
+    }
+    button[role="tab"] {
+        background: transparent;
+        color: #aaaaaa;
+        border: none;
+        border-radius: 0;
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+        font-weight: 500;
+        position: relative;
+    }
+    button[role="tab"][aria-selected="true"] {
+        color: white;
+        border-bottom: 2px solid #ff4b4b;
+        font-weight: 600;
+    }
+    button[role="tab"]:hover {
+        color: white;
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+    
+    /* Custom styles for table headers */
+    .dataframe th {
+        font-weight: bold;
+        background-color: #262730;
+    }
+    /* Style for dark mode tables */
+    .dataframe {
+        border: 1px solid #4e4e4e;
+    }
+    .dataframe td, .dataframe th {
+        border: 1px solid #4e4e4e;
+        padding: 8px;
+    }
+    
+    /* Custom styling for tab navigation area at top */
+    div[data-testid="block-container"] > div:nth-child(1) > div > div > div {
+        background-color: #1e1e24;
+        padding: 0;
+        border-bottom: 1px solid #333;
+    }
+    
+    /* Custom styling for success message */
+    div[data-baseweb="notification"] {
+        margin-bottom: 1rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -54,17 +134,12 @@ if uploaded_file:
                 result_df = process_excel(uploaded_file)
             
             if len(result_df) > 0:
-                # Group statistics
-                groups_stats = result_df.groupby('OVACLS').agg(
-                    Records=('SCORE', 'count')
-                ).reset_index()
-                
                 st.success(f"Found {len(result_df)} records with SCORE above average in their groups")
                 
-                # Create tabs for different types of data
-                tab1, tab2, tab3 = st.tabs(["Results", "Statistics", "Detailed Log"])
+                # Create tabs for different types of data with custom styling
+                tabs = st.tabs(["Results", "Statistics", "Detailed Log"])
                 
-                with tab1:
+                with tabs[0]:  # Results tab
                     # Show results
                     st.subheader("Filtered Records")
                     st.dataframe(result_df, use_container_width=True)
@@ -87,22 +162,40 @@ if uploaded_file:
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
                 
-                with tab2:
-                    # Show group statistics
-                    st.subheader("OVACLS Group Statistics")
-                    st.dataframe(groups_stats, use_container_width=True)
+                with tabs[1]:  # Statistics tab
+                    # Get combined statistics
+                    combined_ovacls_stats = st.session_state['combined_ovacls_stats']
+                    combined_detailed_stats = st.session_state['combined_detailed_stats']
                     
-                    # Show more detailed statistics
+                    # OVACLS Group Statistics
+                    st.subheader("OVACLS Group Statistics")
+                    
+                    # Add index column for display
+                    indexed_stats = combined_ovacls_stats.copy()
+                    indexed_stats.insert(0, 'Index', range(len(indexed_stats)))
+                    
+                    # Reorder columns for better readability
+                    indexed_stats = indexed_stats[['Index', 'OVACLS', 'Records_Before', 'Records_After']]
+                    
+                    st.dataframe(indexed_stats, use_container_width=True)
+                    
+                    # Detailed Group Statistics
                     st.subheader("Detailed Group Statistics")
-                    detailed_stats = result_df.groupby(['OVACLS', 'NEIGHBORHOOD']).agg(
-                        Count=('SCORE', 'count'),
-                        Average_SCORE=('SCORE', 'mean'),
-                        Min_SCORE=('SCORE', 'min'),
-                        Max_SCORE=('SCORE', 'max')
-                    ).reset_index()
-                    st.dataframe(detailed_stats, use_container_width=True)
+                    
+                    # Format and display detailed statistics
+                    formatted_detailed_stats = combined_detailed_stats.copy()
+                    
+                    # Add index for display
+                    formatted_detailed_stats.insert(0, 'Index', range(len(formatted_detailed_stats)))
+                    
+                    # Format numeric columns to 2 decimal places
+                    for col in ['Average_SCORE', 'Min_SCORE', 'Max_SCORE']:
+                        if col in formatted_detailed_stats.columns:
+                            formatted_detailed_stats[col] = formatted_detailed_stats[col].apply(lambda x: f"{x:.2f}" if x > 0 else "0.00")
+                    
+                    st.dataframe(formatted_detailed_stats, use_container_width=True)
                 
-                with tab3:
+                with tabs[2]:  # Detailed Log tab
                     # Show processing log
                     st.subheader("Detailed Processing Log")
                     if 'process_log' in st.session_state:
