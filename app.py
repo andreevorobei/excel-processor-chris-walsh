@@ -5,7 +5,7 @@ import pandas as pd
 from excel_processor_app_en import process_excel  # Import updated function
 
 # Set page config to wide mode but with left-aligned content
-st.set_page_config(page_title="Excel Processor", layout="wide")
+st.set_page_config(page_title="Walsh Law Excel Processor", layout="wide")
 
 # Apply custom CSS to left-align content and improve tab styling
 st.markdown("""
@@ -108,7 +108,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🏗 Excel Property Filter")
+st.title("🏗 Walsh Law Excel Property Filter")
 
 st.write("""
 ### Instructions:
@@ -170,12 +170,24 @@ if uploaded_file:
                     # OVACLS Group Statistics
                     st.subheader("OVACLS Group Statistics")
                     
-                    # Add index column for display
+                    # Add index column for display and calculate percentage
                     indexed_stats = combined_ovacls_stats.copy()
                     indexed_stats.insert(0, 'Index', range(len(indexed_stats)))
                     
+                    # Calculate percentage of records remaining after filtering
+                    indexed_stats['Percentage'] = indexed_stats.apply(
+                        lambda row: round((row['Records_After'] / row['Records_Before']) * 100, 2) 
+                        if row['Records_Before'] > 0 else 0, 
+                        axis=1
+                    )
+                    
+                    # Format percentage as string with % sign
+                    indexed_stats['Percentage'] = indexed_stats['Percentage'].apply(
+                        lambda x: f"{x:.2f}%" if x > 0 else "0.00%"
+                    )
+                    
                     # Reorder columns for better readability
-                    indexed_stats = indexed_stats[['Index', 'OVACLS', 'Records_Before', 'Records_After']]
+                    indexed_stats = indexed_stats[['Index', 'OVACLS', 'Records_Before', 'Records_After', 'Percentage']]
                     
                     st.dataframe(indexed_stats, use_container_width=True)
                     
@@ -187,6 +199,25 @@ if uploaded_file:
                     
                     # Add index for display
                     formatted_detailed_stats.insert(0, 'Index', range(len(formatted_detailed_stats)))
+                    
+                    # Calculate percentage for the detailed table
+                    formatted_detailed_stats['Percentage'] = formatted_detailed_stats.apply(
+                        lambda row: round((row['Count_After'] / row['Count_Before']) * 100, 2) 
+                        if row['Count_Before'] > 0 else 0, 
+                        axis=1
+                    )
+                    
+                    # Format percentage as string with % sign
+                    formatted_detailed_stats['Percentage'] = formatted_detailed_stats['Percentage'].apply(
+                        lambda x: f"{x:.2f}%" if x > 0 else "0.00%"
+                    )
+                    
+                    # Reorder columns to put the percentage right after Count_After
+                    cols = list(formatted_detailed_stats.columns)
+                    after_idx = cols.index('Count_After')
+                    cols.remove('Percentage')
+                    cols.insert(after_idx + 1, 'Percentage')
+                    formatted_detailed_stats = formatted_detailed_stats[cols]
                     
                     # Format numeric columns to 2 decimal places
                     for col in ['Average_SCORE', 'Min_SCORE', 'Max_SCORE']:
